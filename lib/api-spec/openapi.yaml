@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: video
+    description: Video extraction operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,43 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /x-video:
+    post:
+      operationId: fetchXVideo
+      tags: [video]
+      summary: Fetch X/Twitter video info
+      description: Extract video formats and metadata from a public X/Twitter post URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FetchXVideoRequest"
+      responses:
+        "200":
+          description: Video info extracted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoInfo"
+        "400":
+          description: Invalid URL or unsupported content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: Extraction failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +72,69 @@ components:
           type: string
       required:
         - status
-
+    FetchXVideoRequest:
+      type: object
+      properties:
+        url:
+          type: string
+          description: Public X/Twitter post URL
+      required:
+        - url
+    VideoFormat:
+      type: object
+      properties:
+        quality:
+          type: string
+          description: e.g. 1080p, 720p, 480p, 360p
+        ext:
+          type: string
+          description: File extension, e.g. mp4
+        filesize:
+          type: string
+          nullable: true
+          description: Human-readable file size if available
+        url:
+          type: string
+          description: Direct download URL
+        formatId:
+          type: string
+          description: Internal yt-dlp format ID
+      required:
+        - quality
+        - ext
+        - url
+        - formatId
+    VideoInfo:
+      type: object
+      properties:
+        success:
+          type: boolean
+        title:
+          type: string
+        thumbnail:
+          type: string
+          nullable: true
+        duration:
+          type: string
+          nullable: true
+        uploader:
+          type: string
+          nullable: true
+        formats:
+          type: array
+          items:
+            $ref: "#/components/schemas/VideoFormat"
+      required:
+        - success
+        - title
+        - formats
+    ApiError:
+      type: object
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+          nullable: true
+      required:
+        - error

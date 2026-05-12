@@ -5,14 +5,6 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-export interface HealthStatus {
-  status: string;
-}
-
-export interface FetchXVideoRequest {
-  /** Public X/Twitter post URL */
-  url: string;
-}
 
 export interface VideoFormat {
   /** e.g. 1080p, 720p, 480p, 360p */
@@ -25,18 +17,4 @@ export interface VideoFormat {
   url: string;
   /** Internal yt-dlp format ID */
   formatId: string;
-}
-
-export interface VideoInfo {
-  success: boolean;
-  title: string;
-  thumbnail?: string | null;
-  duration?: string | null;
-  uploader?: string | null;
-  formats: VideoFormat[];
-}
-
-export interface ApiError {
-  error: string;
-  code?: string | null;
 }

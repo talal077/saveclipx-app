@@ -5,18 +5,26 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  ApiError,
+  FetchXVideoRequest,
+  HealthStatus,
+  VideoInfo,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -99,3 +107,90 @@ export function useHealthCheck<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Extract video formats and metadata from a public X/Twitter post URL
+ * @summary Fetch X/Twitter video info
+ */
+export const getFetchXVideoUrl = () => {
+  return `/api/x-video`;
+};
+
+export const fetchXVideo = async (
+  fetchXVideoRequest: FetchXVideoRequest,
+  options?: RequestInit,
+): Promise<VideoInfo> => {
+  return customFetch<VideoInfo>(getFetchXVideoUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(fetchXVideoRequest),
+  });
+};
+
+export const getFetchXVideoMutationOptions = <
+  TError = ErrorType<ApiError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof fetchXVideo>>,
+    TError,
+    { data: BodyType<FetchXVideoRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof fetchXVideo>>,
+  TError,
+  { data: BodyType<FetchXVideoRequest> },
+  TContext
+> => {
+  const mutationKey = ["fetchXVideo"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof fetchXVideo>>,
+    { data: BodyType<FetchXVideoRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return fetchXVideo(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type FetchXVideoMutationResult = NonNullable<
+  Awaited<ReturnType<typeof fetchXVideo>>
+>;
+export type FetchXVideoMutationBody = BodyType<FetchXVideoRequest>;
+export type FetchXVideoMutationError = ErrorType<ApiError>;
+
+/**
+ * @summary Fetch X/Twitter video info
+ */
+export const useFetchXVideo = <
+  TError = ErrorType<ApiError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof fetchXVideo>>,
+    TError,
+    { data: BodyType<FetchXVideoRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof fetchXVideo>>,
+  TError,
+  { data: BodyType<FetchXVideoRequest> },
+  TContext
+> => {
+  return useMutation(getFetchXVideoMutationOptions(options));
+};

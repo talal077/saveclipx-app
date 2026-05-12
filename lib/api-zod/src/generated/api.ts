@@ -14,3 +14,31 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * Extract video formats and metadata from a public X/Twitter post URL
+ * @summary Fetch X/Twitter video info
+ */
+export const FetchXVideoBody = zod.object({
+  url: zod.string().describe("Public X\/Twitter post URL"),
+});
+
+export const FetchXVideoResponse = zod.object({
+  success: zod.boolean(),
+  title: zod.string(),
+  thumbnail: zod.string().nullish(),
+  duration: zod.string().nullish(),
+  uploader: zod.string().nullish(),
+  formats: zod.array(
+    zod.object({
+      quality: zod.string().describe("e.g. 1080p, 720p, 480p, 360p"),
+      ext: zod.string().describe("File extension, e.g. mp4"),
+      filesize: zod
+        .string()
+        .nullish()
+        .describe("Human-readable file size if available"),
+      url: zod.string().describe("Direct download URL"),
+      formatId: zod.string().describe("Internal yt-dlp format ID"),
+    }),
+  ),
+});

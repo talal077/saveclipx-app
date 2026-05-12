@@ -1,0 +1,267 @@
+You are a senior full-stack engineer and UI/UX designer.
+
+Build a production-ready web application called:
+
+“X Video Downloader”
+
+Purpose:
+A modern, high-performance web application that allows users to download publicly accessible videos from X (Twitter) directly from a post URL with the smoothest possible user experience.
+
+Core Product Vision:
+The application must feel premium, minimal, fast, modern, and trustworthy — similar to a polished SaaS product rather than a basic downloader tool.
+
+The entire experience should focus on:
+- speed
+- simplicity
+- direct downloading
+- clean UI
+- mobile-first responsiveness
+- zero unnecessary navigation
+
+The user journey should be:
+1. Paste X/Twitter post URL
+2. Click fetch
+3. Choose quality
+4. Download instantly
+
+No redirects.
+No popup pages.
+No third-party landing pages.
+No confusing steps.
+
+==================================================
+TECH STACK
+==================================================
+
+Frontend:
+- React + Vite
+- Axios
+- React Icons
+- Modern CSS or TailwindCSS
+- Responsive layout
+- Dark mode by default
+
+Backend:
+- Node.js
+- Express.js
+- yt-dlp or yt-dlp-exec
+- cors
+- express-rate-limit
+- helmet
+- dotenv
+
+Deployment-ready for:
+- VPS
+- Railway
+- Render
+- Replit
+
+==================================================
+FRONTEND REQUIREMENTS
+==================================================
+
+Design:
+- Professional SaaS-level UI
+- Inspired visually by X/Twitter branding
+- Elegant dark theme
+- Premium typography
+- Smooth transitions and animations
+- Mobile-first responsive design
+- Glassmorphism or modern card UI
+- Fast-loading interface
+- Clean spacing and hierarchy
+
+Main Interface:
+- Large centered URL input
+- Paste icon
+- “Fetch Video” button
+- Animated loading state
+- Error state
+- Success state
+
+Video Preview Section:
+After extraction display:
+- Video title
+- Thumbnail preview
+- Duration
+- Author/uploader if available
+- Available qualities
+
+Quality Selection:
+Display all available formats:
+- 360p
+- 480p
+- 720p
+- 1080p
+- 2K
+- 4K if available
+
+Each quality card/button should display:
+- Resolution
+- File extension
+- File size if available
+- Download button
+
+Download Experience:
+- Direct download only
+- No redirects
+- No opening external websites
+- Download should begin immediately
+- Clean browser download experience
+
+Additional UX Features:
+- Copy/paste optimization
+- Keyboard enter support
+- Disabled button during loading
+- Skeleton loading placeholders
+- Friendly error handling
+- Toast notifications
+- Empty state illustrations
+- Mobile optimized controls
+
+==================================================
+BACKEND REQUIREMENTS
+==================================================
+
+API Endpoint:
+POST /api/x-video
+
+Behavior:
+- Accept X/Twitter public post URLs
+- Extract media information using yt-dlp
+- Extract all available video formats
+- Return highest-quality formats first
+- Avoid duplicate resolutions
+- Handle multiple formats cleanly
+
+Response JSON:
+{
+  success: true,
+  title: "",
+  thumbnail: "",
+  duration: "",
+  uploader: "",
+  formats: [
+    {
+      quality: "1080p",
+      ext: "mp4",
+      filesize: "",
+      url: ""
+    }
+  ]
+}
+
+==================================================
+ERROR HANDLING
+==================================================
+
+The server must:
+- Never crash on extraction failures
+- Return structured error messages
+- Detect invalid URLs
+- Detect unsupported posts
+- Detect unavailable/private content
+- Detect extraction failures
+- Handle timeout errors gracefully
+
+Frontend error examples:
+- Invalid X link
+- Video unavailable
+- Unsupported post
+- Extraction failed
+- Network issue
+- Server temporarily unavailable
+
+==================================================
+SECURITY REQUIREMENTS
+==================================================
+
+- Validate URLs strictly
+- Accept only:
+  - x.com
+  - twitter.com
+- Validate http/https
+- Sanitize all user input
+- Add rate limiting
+- Use Helmet security middleware
+- Restrict oversized requests
+- Do not permanently store downloaded videos
+- Do not bypass protected/private content
+- Respect platform rules and copyright
+
+==================================================
+PERFORMANCE REQUIREMENTS
+==================================================
+
+- Fast extraction
+- Optimized API responses
+- Lightweight frontend bundle
+- Lazy loading where appropriate
+- Efficient state management
+- Minimize unnecessary renders
+- Smooth mobile performance
+
+==================================================
+DEPLOYMENT REQUIREMENTS
+==================================================
+
+Prepare the project for:
+- VPS deployment
+- Render
+- Railway
+- Replit
+
+Include:
+- Environment variables support
+- Production build scripts
+- README.md
+- Deployment instructions
+- yt-dlp update instructions
+- PM2 setup guide
+- Nginx reverse proxy example
+- HTTPS/SSL setup notes
+
+==================================================
+PROJECT STRUCTURE
+==================================================
+
+frontend/
+- components/
+- pages/
+- services/
+- assets/
+- styles/
+
+backend/
+- routes/
+- controllers/
+- services/
+- middleware/
+- utils/
+
+==================================================
+DELIVERABLES
+==================================================
+
+Provide:
+1. Complete frontend code
+2. Complete backend code
+3. API structure
+4. Folder structure
+5. Installation commands
+6. Deployment steps
+7. Security setup
+8. Error handling system
+9. Responsive UI implementation
+10. Production optimization recommendations
+
+==================================================
+IMPORTANT
+==================================================
+
+The application must:
+- Support only publicly accessible X/Twitter videos
+- Avoid bypassing authentication or protected/private content
+- Be scalable and maintainable
+- Feel like a premium modern web application
+- Be optimized for future monetization through ads or premium plans
