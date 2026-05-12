@@ -48,12 +48,33 @@ export default function DownloaderScreen() {
     if (videoData || error) reset();
   };
 
-  const handleDownload = async (formatUrl: string) => {
+  const handleDownload = async (format: {
+    url: string;
+    quality: string;
+    ext: string;
+  }) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    try {
-      await Linking.openURL(formatUrl);
-    } catch {
-      // URL could not be opened
+
+    const apiBase = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
+    const filename = `x-video-${format.quality}.${format.ext}`;
+    const proxyUrl = `${apiBase}/api/download-file?url=${encodeURIComponent(format.url)}&filename=${encodeURIComponent(filename)}`;
+
+    if (Platform.OS === "web") {
+      // Anchor-click forces a browser download — never opens video.twimg.com
+      const link = document.createElement("a");
+      link.href = proxyUrl;
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } else {
+      // On native the system browser receives the proxy URL which sets
+      // Content-Disposition: attachment and triggers a file download
+      try {
+        await Linking.openURL(proxyUrl);
+      } catch {
+        // URL could not be opened
+      }
     }
   };
 
@@ -234,7 +255,7 @@ export default function DownloaderScreen() {
                 <TouchableOpacity
                   key={format.formatId}
                   style={styles(colors).qualityRow}
-                  onPress={() => handleDownload(format.url)}
+                  onPress={() => handleDownload(format)}
                   activeOpacity={0.7}
                 >
                   <View style={styles(colors).qualityBadge}>

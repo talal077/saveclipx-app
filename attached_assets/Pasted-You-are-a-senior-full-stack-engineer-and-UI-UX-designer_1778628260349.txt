@@ -1,0 +1,276 @@
+You are a senior full-stack engineer and UI/UX designer.
+
+Build a production-ready web application called:
+
+“X Video Downloader”
+
+Purpose:
+Create a fast, modern, professional web application that downloads public videos from X/Twitter directly by pasting the post URL.
+
+Critical Requirement:
+The app must NOT open the raw video URL in a new tab.
+The app must NOT redirect the user to video.twimg.com or any external video page.
+The app must NOT only preview the video.
+The app must force the browser to download the video file directly as an MP4 file.
+
+The user flow must be:
+1. User pastes an X/Twitter post URL.
+2. User clicks “Fetch Video”.
+3. App extracts available video qualities.
+4. User selects quality.
+5. User clicks “Download”.
+6. The video download starts immediately from the browser.
+7. The user stays inside the app experience.
+
+==================================================
+TECH STACK
+==================================================
+
+Frontend:
+- React + Vite
+- Axios
+- React Icons
+- Modern responsive UI
+- Arabic RTL support
+- Dark premium design inspired by X/Twitter
+
+Backend:
+- Node.js
+- Express.js
+- cors
+- helmet
+- express-rate-limit
+- yt-dlp-exec
+- dotenv
+
+==================================================
+FRONTEND REQUIREMENTS
+==================================================
+
+Build a clean single-page interface.
+
+UI must include:
+- App name: X Video Downloader
+- Large URL input field
+- Button: “Fetch Video”
+- Loading state while extracting
+- Error message box
+- Video details section after extraction
+- Thumbnail if available
+- Title if available
+- Quality selector
+- Direct download button
+
+Quality options:
+- Show all available MP4 qualities from the original source:
+  - 360p
+  - 480p
+  - 720p
+  - 1080p
+  - higher if available
+
+Important frontend behavior:
+- Do NOT use window.open(videoUrl)
+- Do NOT set window.location.href directly to the raw video URL
+- Do NOT open video.twimg.com
+- The download button must call the backend download endpoint:
+  GET /api/download-file?url=ENCODED_VIDEO_URL&filename=VIDEO_NAME.mp4
+- The backend must stream the file and set Content-Disposition: attachment
+- The frontend should trigger the backend download endpoint only
+
+Example frontend download behavior:
+
+const downloadUrl =
+  `${API_BASE_URL}/api/download-file?url=${encodeURIComponent(selectedFormat.url)}&filename=${encodeURIComponent("x-video.mp4")}`;
+
+const link = document.createElement("a");
+link.href = downloadUrl;
+link.setAttribute("download", "x-video.mp4");
+document.body.appendChild(link);
+link.click();
+link.remove();
+
+==================================================
+BACKEND REQUIREMENTS
+==================================================
+
+Create two main endpoints:
+
+1. POST /api/x-video
+
+Purpose:
+Extract video information and available qualities from a public X/Twitter post URL.
+
+Request:
+{
+  "url": "https://x.com/user/status/123"
+}
+
+Behavior:
+- Validate URL
+- Accept only x.com and twitter.com
+- Use yt-dlp-exec to extract video information
+- Extract available MP4 formats
+- Remove duplicate qualities
+- Sort qualities from highest to lowest
+- Return clean JSON
+
+Response:
+{
+  "success": true,
+  "title": "Video title",
+  "thumbnail": "thumbnail url",
+  "duration": 120,
+  "formats": [
+    {
+      "quality": "720p",
+      "url": "direct video url",
+      "ext": "mp4",
+      "filesize": 12345678
+    }
+  ]
+}
+
+2. GET /api/download-file
+
+Purpose:
+Force direct file download through the backend.
+
+Query params:
+- url = encoded direct video URL
+- filename = desired filename
+
+Critical backend behavior:
+- Fetch the video URL from the server side
+- Stream the response to the user
+- Set headers:
+  Content-Type: video/mp4
+  Content-Disposition: attachment; filename="x-video.mp4"
+- This endpoint must force download instead of opening the video in the browser
+- Do not redirect to the raw video URL
+- Do not send the user to video.twimg.com
+
+Example backend behavior:
+
+app.get("/api/download-file", async (req, res) => {
+  const videoUrl = req.query.url;
+  const filename = req.query.filename || "x-video.mp4";
+
+  const response = await fetch(videoUrl, {
+    headers: {
+      "User-Agent": "Mozilla/5.0",
+      "Referer": "https://x.com/"
+    }
+  });
+
+  res.setHeader("Content-Type", "video/mp4");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+  response.body.pipe(res);
+});
+
+==================================================
+IMPORTANT BUG TO AVOID
+==================================================
+
+Do not make this mistake:
+
+window.open(response.data.video, "_blank");
+
+This is wrong because it opens the raw video URL in the browser.
+
+Correct approach:
+The frontend must call the backend download proxy endpoint:
+
+/api/download-file?url=ENCODED_VIDEO_URL
+
+The backend must stream the video file with attachment headers.
+
+==================================================
+SECURITY REQUIREMENTS
+==================================================
+
+- Validate that input starts with http or https
+- Allow only x.com and twitter.com post URLs
+- Prevent unsupported domains
+- Add rate limiting
+- Add request body size limit
+- Use helmet
+- Sanitize user input
+- Do not permanently store downloaded videos
+- Do not support private/protected/login-required content
+- Do not bypass authentication or access controls
+- Return safe structured errors
+
+==================================================
+ERROR HANDLING
+==================================================
+
+Handle:
+- Empty URL
+- Invalid URL
+- Unsupported domain
+- No video found
+- Private or unavailable post
+- yt-dlp extraction failure
+- Download stream failure
+- Server timeout
+
+Never crash the server.
+Always return clean JSON errors.
+
+Frontend must show friendly Arabic messages.
+
+==================================================
+DESIGN REQUIREMENTS
+==================================================
+
+Design style:
+- Premium dark interface
+- X/Twitter-inspired colors
+- Modern glass card
+- Mobile-first
+- Large input
+- Clear download button
+- Quality cards
+- Smooth loading animation
+- Professional spacing
+- Clean Arabic RTL layout
+
+Do not make the app look basic.
+
+==================================================
+DEPLOYMENT REQUIREMENTS
+==================================================
+
+Make it ready for:
+- Replit
+- Render
+- Railway
+- VPS
+
+Include:
+- package.json scripts
+- .env support
+- README.md
+- local setup instructions
+- deployment instructions
+- yt-dlp update instructions
+- troubleshooting notes
+
+==================================================
+DELIVERABLES
+==================================================
+
+Provide:
+1. Complete backend server.js
+2. Complete frontend App.jsx
+3. API base URL configuration
+4. Installation commands
+5. Run commands
+6. Deployment notes
+7. Explanation of how direct download works
+8. Confirmation that the app does not open video.twimg.com and downloads directly instead
+
+Final behavior must be:
+Paste X link → fetch qualities → choose quality → click download → browser downloads MP4 immediately.
