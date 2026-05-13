@@ -14,17 +14,21 @@ export interface FetchXVideoRequest {
   url: string;
 }
 
+/**
+ * A selectable video format. Raw CDN/HLS URLs are never exposed to the client — use formatId + the original post URL with POST /api/download.
+
+ */
 export interface VideoFormat {
-  /** e.g. 1080p, 720p, 480p, 360p */
-  quality: string;
-  /** File extension, e.g. mp4 */
-  ext: string;
-  /** Human-readable file size if available */
-  filesize?: string | null;
-  /** Direct download URL */
-  url: string;
-  /** Internal yt-dlp format ID */
+  /** yt-dlp internal format ID, pass this to /api/download */
   formatId: string;
+  /** Human-readable quality label e.g. 1080p */
+  quality: string;
+  /** Container extension e.g. mp4 */
+  ext: string;
+  /** Human-readable file size if known */
+  filesize?: string | null;
+  /** Video height in pixels */
+  height?: number | null;
 }
 
 export interface VideoInfo {

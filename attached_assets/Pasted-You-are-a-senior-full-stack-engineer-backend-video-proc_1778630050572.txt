@@ -1,0 +1,397 @@
+You are a senior full-stack engineer, backend video-processing specialist, and UI/UX designer.
+
+Rebuild and fix my application from scratch.
+
+Project name:
+X Video Downloader
+
+Current stack:
+- Frontend: React + Vite
+- Backend: Node.js + Express
+- Hosted/testing on Replit
+- Current tools: yt-dlp-exec
+
+Main problem:
+The app extracts X/Twitter video links, but the download behavior is wrong.
+
+Current bugs:
+1. When clicking download, the browser opens the video page instead of downloading the file.
+2. Sometimes the downloaded file is .m3u8 instead of a real .mp4.
+3. The frontend sometimes uses the raw video URL directly.
+4. The app sometimes redirects to video.twimg.com.
+5. The user experience is not direct enough.
+
+Final required behavior:
+Paste X/Twitter post URL → fetch video → show available qualities → select quality → click Download → browser immediately downloads a real .mp4 video file.
+
+No video page should open.
+No raw video URL should open.
+No video.twimg.com page should open.
+No .m3u8 file should ever be downloaded.
+The final downloaded file must be a real .mp4 file.
+
+==================================================
+ABSOLUTE RULES
+==================================================
+
+The app must NEVER:
+- open the raw video URL in the browser
+- use window.open(rawVideoUrl)
+- set window.location.href to the raw video URL
+- use <a href={rawVideoUrl}>
+- redirect the user to video.twimg.com
+- send m3u8 links to the frontend as downloadable links
+- allow the browser to download .m3u8 files
+- expose HLS playlist URLs as download options
+
+The app must ALWAYS:
+- use the backend to perform the actual download
+- use yt-dlp to download/merge/convert the selected format
+- output a real .mp4 file
+- send the final file to the frontend as a Blob
+- force download using Content-Disposition: attachment
+- delete temporary files after download
+- handle errors without crashing
+
+==================================================
+CORRECT ARCHITECTURE
+==================================================
+
+Frontend:
+The frontend is only responsible for:
+1. Collecting the X/Twitter URL
+2. Asking the backend for available qualities
+3. Letting the user select quality
+4. Calling backend download endpoint
+5. Receiving the final MP4 as a Blob
+6. Triggering browser download from the Blob
+
+The frontend must NOT download from video.twimg.com directly.
+
+Backend:
+The backend is responsible for:
+1. Extracting video metadata
+2. Extracting available formats
+3. Returning quality options only
+4. Downloading the selected format server-side
+5. Converting/merging to MP4 if needed
+6. Streaming the final MP4 to the browser
+7. Cleaning temporary files
+
+==================================================
+TECH STACK
+==================================================
+
+Frontend:
+- React + Vite
+- Axios
+- React Icons
+- Arabic RTL layout
+- Modern responsive dark UI
+
+Backend:
+- Node.js
+- Express
+- yt-dlp-exec
+- ffmpeg-static
+- cors
+- helmet
+- express-rate-limit
+- dotenv
+- fs
+- path
+- crypto
+
+==================================================
+BACKEND ENDPOINTS
+==================================================
+
+Create exactly these endpoints:
+
+1. GET /
+Return:
+"X Downloader Backend Running"
+
+2. POST /api/x-video
+
+Purpose:
+Extract video info and available quality options.
+
+Request body:
+{
+  "url": "https://x.com/user/status/123"
+}
+
+Rules:
+- Validate the URL.
+- Accept only:
+  - x.com
+  - twitter.com
+- Reject empty URLs.
+- Reject invalid domains.
+- Do not support private/protected/login-required content.
+- Use yt-dlp-exec to get video metadata.
+- Return quality options.
+- Do NOT return raw m3u8 download URLs to the frontend.
+- Do NOT return HLS playlist URLs as downloadable links.
+- The frontend should receive formatId, quality, height, ext, filesize, not raw playable video URLs for direct download.
+
+Response example:
+{
+  "success": true,
+  "title": "Video title",
+  "thumbnail": "thumbnail URL",
+  "formats": [
+    {
+      "formatId": "http-832",
+      "quality": "720p",
+      "height": 720,
+      "ext": "mp4",
+      "filesize": 12345678
+    }
+  ]
+}
+
+Quality rules:
+- Include video formats with height.
+- Prefer MP4 when available.
+- If the source is HLS/m3u8, still allow selecting the quality, but do NOT send m3u8 to the browser.
+- Sort qualities from highest to lowest.
+- Remove duplicate quality options.
+
+3. POST /api/download
+
+Purpose:
+Download the selected video server-side and send the final MP4 file to the browser.
+
+Request body:
+{
+  "url": "https://x.com/user/status/123",
+  "formatId": "selected-format-id"
+}
+
+Critical behavior:
+- Use yt-dlp-exec to download the selected format.
+- Use ffmpeg-static.
+- Force MP4 output.
+- If the selected format is HLS/m3u8, yt-dlp must download the segments and ffmpeg must merge them into a real MP4.
+- Save temporary output into /tmp/x-downloads.
+- Use unique filename with crypto.randomUUID().
+- Stream the final .mp4 file to the response.
+- Set headers:
+  Content-Type: application/octet-stream
+  Content-Disposition: attachment; filename="x-video.mp4"
+- Delete the temporary MP4 file after response finishes.
+- Do not redirect.
+- Do not send the raw URL.
+- Do not return m3u8.
+- Do not open video.twimg.com.
+- If MP4 creation fails, return a clean JSON error.
+
+yt-dlp options must include equivalent of:
+- format: selected format + bestaudio fallback when needed
+- mergeOutputFormat: mp4
+- recodeVideo: mp4 if needed
+- ffmpegLocation: ffmpeg-static path
+- output: /tmp/x-downloads/unique-id.%(ext)s
+- noPlaylist: true
+- noWarnings: true
+- addHeader:
+  - referer:https://x.com/
+  - user-agent:Mozilla/5.0
+
+Important:
+The final response of /api/download must be a binary MP4 file, not JSON on success.
+
+==================================================
+FRONTEND REQUIREMENTS
+==================================================
+
+Build a single-page React app.
+
+UI:
+- Arabic RTL interface
+- Professional dark X-inspired design
+- Large URL input
+- Fetch button
+- Loading state
+- Error message
+- Thumbnail preview
+- Video title
+- Quality selector/cards
+- Download button
+- Mobile-friendly layout
+
+Frontend behavior:
+1. User pastes X/Twitter URL.
+2. User clicks "جلب الفيديو".
+3. Frontend calls:
+   POST /api/x-video
+4. Frontend displays returned qualities.
+5. User selects quality.
+6. User clicks "تحميل".
+7. Frontend calls:
+   POST /api/download
+   with:
+   {
+     url,
+     formatId
+   }
+   and:
+   responseType: "blob"
+8. Frontend creates a Blob URL and triggers download.
+
+Correct frontend download code must use:
+
+const response = await axios.post(
+  `${API_BASE_URL}/api/download`,
+  { url, formatId: selectedFormat.formatId },
+  { responseType: "blob" }
+);
+
+const blob = new Blob([response.data], { type: "video/mp4" });
+const blobUrl = window.URL.createObjectURL(blob);
+
+const a = document.createElement("a");
+a.href = blobUrl;
+a.download = "x-video.mp4";
+document.body.appendChild(a);
+a.click();
+a.remove();
+
+window.URL.revokeObjectURL(blobUrl);
+
+The frontend must NOT use:
+window.open()
+window.location.href = raw video URL
+raw video URL in <a href>
+
+==================================================
+M3U8 PROBLEM REQUIREMENT
+==================================================
+
+The application must fully solve the m3u8 problem.
+
+Correct handling:
+- m3u8/HLS may exist internally during extraction.
+- But m3u8 must never be downloaded by the browser.
+- If selected format is HLS/m3u8, backend must use yt-dlp + ffmpeg to download segments and produce a real .mp4.
+- The browser must receive only the final MP4 Blob.
+- The final filename must end with .mp4.
+- If conversion fails, show:
+"تعذر تحويل الفيديو إلى MP4"
+
+==================================================
+ERROR HANDLING
+==================================================
+
+Backend must handle:
+- Empty URL
+- Invalid URL
+- Unsupported domain
+- No video found
+- Private/protected post
+- yt-dlp extraction failure
+- ffmpeg conversion failure
+- Download timeout
+- Missing temporary file
+- Streaming errors
+
+Frontend must show Arabic user-friendly messages:
+- "ضع رابط X صحيح"
+- "لم يتم العثور على فيديو"
+- "تعذر استخراج الفيديو"
+- "تعذر تحميل الفيديو"
+- "تعذر تحويل الفيديو إلى MP4"
+- "حاول مرة أخرى لاحقًا"
+
+Never crash the backend.
+
+==================================================
+SECURITY REQUIREMENTS
+==================================================
+
+- Use helmet
+- Use express-rate-limit
+- Use express.json({ limit: "1mb" })
+- Validate URLs strictly
+- Allow only x.com and twitter.com
+- Do not store videos permanently
+- Delete temporary files after sending
+- No authentication bypass
+- No private/protected content bypass
+- No permanent media hosting
+
+==================================================
+REPLIT REQUIREMENTS
+==================================================
+
+Make it work on Replit.
+
+Include:
+- package.json dependencies
+- install commands
+- run commands
+- Replit notes
+- ffmpeg-static setup
+- yt-dlp-exec setup
+- troubleshooting notes if ffmpeg or yt-dlp fails
+
+Required install command:
+npm install express cors helmet express-rate-limit yt-dlp-exec ffmpeg-static dotenv axios react-icons
+
+==================================================
+DELIVERABLES
+==================================================
+
+Provide:
+1. Complete corrected backend/server.js
+2. Complete corrected frontend/src/App.jsx
+3. package.json for backend
+4. package.json for frontend if needed
+5. Installation commands
+6. Run commands
+7. Explanation of why m3u8 was happening
+8. Explanation of why the video was opening instead of downloading
+9. Explanation of how this solution fixes both issues
+10. Confirmation checklist:
+   - No raw video URL opens
+   - No video.twimg.com opens
+   - No .m3u8 downloads
+   - Backend downloads and converts
+   - Frontend receives Blob
+   - Browser downloads .mp4 directly
+
+==================================================
+FINAL ACCEPTANCE TEST
+==================================================
+
+The final app must pass this test:
+
+Test 1:
+Paste public X/Twitter video URL.
+Click fetch.
+Select 720p or highest available.
+Click download.
+Expected:
+Browser downloads x-video.mp4.
+No video page opens.
+
+Test 2:
+Use a video where yt-dlp sees m3u8/HLS.
+Click download.
+Expected:
+Backend downloads segments, ffmpeg merges/converts, browser receives x-video.mp4.
+No .m3u8 file is downloaded.
+
+Test 3:
+Use invalid URL.
+Expected:
+Arabic error message, no crash.
+
+Test 4:
+Use protected/private content.
+Expected:
+Arabic error message, no bypass attempt.
+
+Now provide the full corrected code, not just explanations.

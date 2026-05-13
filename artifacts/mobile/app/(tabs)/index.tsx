@@ -17,10 +17,16 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFetchXVideo } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 
+type DownloadState = "idle" | "downloading" | "done" | "error";
+
 export default function DownloaderScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const [url, setUrl] = useState("");
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadStates, setDownloadStates] = useState<
+    Record<string, DownloadState>
+  >({});
   const inputRef = useRef<TextInput>(null);
 
   const {
@@ -34,64 +40,101 @@ export default function DownloaderScreen() {
   const handleFetch = () => {
     if (!url.trim() || isPending) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setDownloadStates({});
     fetchVideo({ data: { url: url.trim() } });
   };
 
   const handleClear = () => {
     setUrl("");
     reset();
+    setDownloadStates({});
     inputRef.current?.focus();
   };
 
   const handleUrlChange = (text: string) => {
     setUrl(text);
-    if (videoData || error) reset();
-  };
-
-  const handleDownload = async (format: {
-    url: string;
-    quality: string;
-    ext: string;
-  }) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    const apiBase = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
-    const filename = `x-video-${format.quality}.${format.ext}`;
-    const proxyUrl = `${apiBase}/api/download-file?url=${encodeURIComponent(format.url)}&filename=${encodeURIComponent(filename)}`;
-
-    if (Platform.OS === "web") {
-      // Anchor-click forces a browser download — never opens video.twimg.com
-      const link = document.createElement("a");
-      link.href = proxyUrl;
-      link.setAttribute("download", filename);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-    } else {
-      // On native the system browser receives the proxy URL which sets
-      // Content-Disposition: attachment and triggers a file download
-      try {
-        await Linking.openURL(proxyUrl);
-      } catch {
-        // URL could not be opened
-      }
+    if (videoData || error) {
+      reset();
+      setDownloadStates({});
     }
   };
 
-  const errorMsg =
+  /**
+   * Download flow:
+   * - Web:   POST /api/download → receive ArrayBuffer → Blob → anchor click
+   *          The raw CDN URL never touches the browser. No m3u8 downloads.
+   * - Native: GET /api/download?url=...&formatId=...
+   *           Backend yt-dlp+ffmpeg produces the MP4, browser downloads it.
+   */
+  const handleDownload = async (formatId: string, quality: string) => {
+    if (downloadingId) return; // prevent concurrent downloads
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    setDownloadingId(formatId);
+    setDownloadStates((prev) => ({ ...prev, [formatId]: "downloading" }));
+
+    const apiBase = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
+
+    try {
+      if (Platform.OS === "web") {
+        // --- Web: POST → blob → anchor download ---
+        const response = await fetch(`${apiBase}/api/download`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: url.trim(), formatId }),
+        });
+
+        if (!response.ok) {
+          let errMsg = "تعذر تحميل الفيديو";
+          try {
+            const json = (await response.json()) as { error?: string };
+            if (json.error) errMsg = json.error;
+          } catch {
+            // ignore
+          }
+          throw new Error(errMsg);
+        }
+
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = `x-video-${quality}.mp4`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(blobUrl);
+      } else {
+        // --- Native: GET endpoint → browser handles Content-Disposition ---
+        const params = new URLSearchParams({
+          url: url.trim(),
+          formatId,
+        });
+        await Linking.openURL(`${apiBase}/api/download?${params.toString()}`);
+      }
+
+      setDownloadStates((prev) => ({ ...prev, [formatId]: "done" }));
+    } catch (err) {
+      setDownloadStates((prev) => ({ ...prev, [formatId]: "error" }));
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const fetchErrorMsg =
     error instanceof Error
       ? error.message
       : error
-        ? "Something went wrong. Please try again."
+        ? "تعذر استخراج الفيديو. حاول مرة أخرى."
         : null;
 
-  const topPad =
-    insets.top + (Platform.OS === "web" ? 67 : 0);
-  const bottomPad =
-    insets.bottom + (Platform.OS === "web" ? 34 : 0);
+  const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
+  const bottomPad = insets.bottom + (Platform.OS === "web" ? 34 : 0);
 
   return (
-    <View style={[styles(colors).container, { backgroundColor: colors.background }]}>
+    <View
+      style={{ flex: 1, backgroundColor: colors.background }}
+    >
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={[
@@ -161,8 +204,8 @@ export default function DownloaderScreen() {
             ) : (
               <View style={styles(colors).fetchBtnInner}>
                 <Feather
-                  name="download-cloud"
-                  size={18}
+                  name="search"
+                  size={17}
                   color="#fff"
                   style={{ marginRight: 8 }}
                 />
@@ -172,8 +215,8 @@ export default function DownloaderScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Error State */}
-        {errorMsg && (
+        {/* Fetch error */}
+        {fetchErrorMsg && (
           <View style={styles(colors).errorCard}>
             <Feather
               name="alert-circle"
@@ -181,7 +224,7 @@ export default function DownloaderScreen() {
               color={colors.destructive}
               style={{ marginRight: 10, marginTop: 1 }}
             />
-            <Text style={styles(colors).errorText}>{errorMsg}</Text>
+            <Text style={styles(colors).errorText}>{fetchErrorMsg}</Text>
           </View>
         )}
 
@@ -191,13 +234,18 @@ export default function DownloaderScreen() {
             <View style={styles(colors).skeletonThumb} />
             <View style={{ padding: 16, gap: 10 }}>
               <View style={[styles(colors).skeletonLine, { width: "90%" }]} />
-              <View style={[styles(colors).skeletonLine, { width: "60%" }]} />
-              <View style={[styles(colors).skeletonLine, { width: "40%", height: 12 }]} />
+              <View style={[styles(colors).skeletonLine, { width: "55%" }]} />
+              <View
+                style={[
+                  styles(colors).skeletonLine,
+                  { width: "35%", height: 12 },
+                ]}
+              />
             </View>
           </View>
         )}
 
-        {/* Video Result */}
+        {/* Video result */}
         {videoData && !isPending && (
           <View style={styles(colors).videoCard}>
             {videoData.thumbnail ? (
@@ -208,7 +256,11 @@ export default function DownloaderScreen() {
               />
             ) : (
               <View style={styles(colors).thumbnailPlaceholder}>
-                <Feather name="video" size={36} color={colors.mutedForeground} />
+                <Feather
+                  name="video"
+                  size={36}
+                  color={colors.mutedForeground}
+                />
               </View>
             )}
 
@@ -246,48 +298,107 @@ export default function DownloaderScreen() {
               </View>
             </View>
 
-            {/* Quality Section */}
+            {/* Quality / download section */}
             <View style={styles(colors).qualitySection}>
               <Text style={styles(colors).qualityHeader}>
-                Available Formats
+                Select Quality to Download
               </Text>
-              {videoData.formats.map((format) => (
-                <TouchableOpacity
-                  key={format.formatId}
-                  style={styles(colors).qualityRow}
-                  onPress={() => handleDownload(format)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles(colors).qualityBadge}>
-                    <Text style={styles(colors).qualityBadgeText}>
-                      {format.quality}
-                    </Text>
-                  </View>
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <Text style={styles(colors).qualityExt}>
-                      {format.ext.toUpperCase()}
-                    </Text>
-                    {format.filesize && (
-                      <Text style={styles(colors).qualitySize}>
-                        {format.filesize}
+              {videoData.formats.map((format) => {
+                const state = downloadStates[format.formatId] ?? "idle";
+                const isThis = downloadingId === format.formatId;
+
+                return (
+                  <TouchableOpacity
+                    key={format.formatId}
+                    style={[
+                      styles(colors).qualityRow,
+                      state === "done" && styles(colors).qualityRowDone,
+                      state === "error" && styles(colors).qualityRowError,
+                    ]}
+                    onPress={() =>
+                      handleDownload(format.formatId, format.quality)
+                    }
+                    disabled={!!downloadingId}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles(colors).qualityBadge}>
+                      <Text style={styles(colors).qualityBadgeText}>
+                        {format.quality}
                       </Text>
-                    )}
-                  </View>
-                  <View style={styles(colors).dlButton}>
-                    <Feather name="download" size={14} color={colors.primary} />
-                    <Text style={styles(colors).dlButtonText}>Download</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
+                    </View>
+
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Text style={styles(colors).qualityExt}>
+                        {format.ext.toUpperCase()}
+                      </Text>
+                      {format.filesize && (
+                        <Text style={styles(colors).qualitySize}>
+                          {format.filesize}
+                        </Text>
+                      )}
+                      {state === "error" && (
+                        <Text style={styles(colors).qualityErrorText}>
+                          تعذر التحميل
+                        </Text>
+                      )}
+                    </View>
+
+                    <View
+                      style={[
+                        styles(colors).dlButton,
+                        state === "done" && styles(colors).dlButtonDone,
+                        state === "error" && styles(colors).dlButtonError,
+                      ]}
+                    >
+                      {isThis ? (
+                        <ActivityIndicator size="small" color={colors.primary} />
+                      ) : state === "done" ? (
+                        <>
+                          <Feather name="check" size={14} color="#22c55e" />
+                          <Text style={styles(colors).dlButtonTextDone}>
+                            Done
+                          </Text>
+                        </>
+                      ) : state === "error" ? (
+                        <>
+                          <Feather
+                            name="alert-circle"
+                            size={14}
+                            color={colors.destructive}
+                          />
+                          <Text style={styles(colors).dlButtonTextError}>
+                            Retry
+                          </Text>
+                        </>
+                      ) : (
+                        <>
+                          <Feather
+                            name="download"
+                            size={14}
+                            color={colors.primary}
+                          />
+                          <Text style={styles(colors).dlButtonText}>
+                            Download
+                          </Text>
+                        </>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
         )}
 
-        {/* Empty State */}
-        {!videoData && !isPending && !errorMsg && (
+        {/* Empty state */}
+        {!videoData && !isPending && !fetchErrorMsg && (
           <View style={styles(colors).emptyState}>
             <View style={styles(colors).emptyIconWrap}>
-              <Feather name="download-cloud" size={40} color={colors.primary} />
+              <Feather
+                name="download-cloud"
+                size={40}
+                color={colors.primary}
+              />
             </View>
             <Text style={styles(colors).emptyTitle}>
               Paste a post URL to get started
@@ -295,6 +406,23 @@ export default function DownloaderScreen() {
             <Text style={styles(colors).emptySubtitle}>
               Works with any public X or Twitter video
             </Text>
+            <View style={styles(colors).featureList}>
+              {[
+                "Real MP4 download — no m3u8",
+                "All qualities in one tap",
+                "No redirect to video.twimg.com",
+              ].map((item) => (
+                <View key={item} style={styles(colors).featureRow}>
+                  <Feather
+                    name="check-circle"
+                    size={14}
+                    color={colors.primary}
+                    style={{ marginRight: 8 }}
+                  />
+                  <Text style={styles(colors).featureText}>{item}</Text>
+                </View>
+              ))}
+            </View>
           </View>
         )}
       </ScrollView>
@@ -302,11 +430,10 @@ export default function DownloaderScreen() {
   );
 }
 
-const styles = (colors: ReturnType<typeof import("@/hooks/useColors").useColors>) =>
+const styles = (
+  colors: ReturnType<typeof import("@/hooks/useColors").useColors>,
+) =>
   StyleSheet.create({
-    container: {
-      flex: 1,
-    },
     scrollContent: {
       paddingHorizontal: 20,
       gap: 16,
@@ -488,6 +615,14 @@ const styles = (colors: ReturnType<typeof import("@/hooks/useColors").useColors>
       borderColor: colors.border,
       padding: 12,
     },
+    qualityRowDone: {
+      borderColor: "#22c55e40",
+      backgroundColor: "#22c55e08",
+    },
+    qualityRowError: {
+      borderColor: `${colors.destructive}40`,
+      backgroundColor: `${colors.destructive}08`,
+    },
     qualityBadge: {
       backgroundColor: `${colors.primary}20`,
       borderRadius: 6,
@@ -512,6 +647,12 @@ const styles = (colors: ReturnType<typeof import("@/hooks/useColors").useColors>
       color: colors.mutedForeground,
       marginTop: 2,
     },
+    qualityErrorText: {
+      fontSize: 11,
+      fontFamily: "Inter_400Regular",
+      color: colors.destructive,
+      marginTop: 2,
+    },
     dlButton: {
       flexDirection: "row",
       alignItems: "center",
@@ -521,15 +662,33 @@ const styles = (colors: ReturnType<typeof import("@/hooks/useColors").useColors>
       borderRadius: 8,
       paddingHorizontal: 12,
       paddingVertical: 7,
+      minWidth: 90,
+      justifyContent: "center",
+    },
+    dlButtonDone: {
+      borderColor: "#22c55e60",
+    },
+    dlButtonError: {
+      borderColor: `${colors.destructive}60`,
     },
     dlButtonText: {
       fontSize: 13,
       fontFamily: "Inter_600SemiBold",
       color: colors.primary,
     },
+    dlButtonTextDone: {
+      fontSize: 13,
+      fontFamily: "Inter_600SemiBold",
+      color: "#22c55e",
+    },
+    dlButtonTextError: {
+      fontSize: 13,
+      fontFamily: "Inter_600SemiBold",
+      color: colors.destructive,
+    },
     emptyState: {
       alignItems: "center",
-      paddingVertical: 60,
+      paddingVertical: 50,
       gap: 12,
     },
     emptyIconWrap: {
@@ -552,5 +711,20 @@ const styles = (colors: ReturnType<typeof import("@/hooks/useColors").useColors>
       fontFamily: "Inter_400Regular",
       color: colors.mutedForeground,
       textAlign: "center",
+    },
+    featureList: {
+      marginTop: 8,
+      gap: 8,
+      alignSelf: "stretch",
+      paddingHorizontal: 24,
+    },
+    featureRow: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    featureText: {
+      fontSize: 13,
+      fontFamily: "Inter_400Regular",
+      color: colors.mutedForeground,
     },
   });

@@ -8,7 +8,6 @@
 import * as zod from "zod";
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
@@ -16,8 +15,7 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
- * Extract video formats and metadata from a public X/Twitter post URL
- * @summary Fetch X/Twitter video info
+ * @summary Fetch X/Twitter video info and available formats
  */
 export const FetchXVideoBody = zod.object({
   url: zod.string().describe("Public X\/Twitter post URL"),
@@ -30,15 +28,23 @@ export const FetchXVideoResponse = zod.object({
   duration: zod.string().nullish(),
   uploader: zod.string().nullish(),
   formats: zod.array(
-    zod.object({
-      quality: zod.string().describe("e.g. 1080p, 720p, 480p, 360p"),
-      ext: zod.string().describe("File extension, e.g. mp4"),
-      filesize: zod
-        .string()
-        .nullish()
-        .describe("Human-readable file size if available"),
-      url: zod.string().describe("Direct download URL"),
-      formatId: zod.string().describe("Internal yt-dlp format ID"),
-    }),
+    zod
+      .object({
+        formatId: zod
+          .string()
+          .describe("yt-dlp internal format ID, pass this to \/api\/download"),
+        quality: zod
+          .string()
+          .describe("Human-readable quality label e.g. 1080p"),
+        ext: zod.string().describe("Container extension e.g. mp4"),
+        filesize: zod
+          .string()
+          .nullish()
+          .describe("Human-readable file size if known"),
+        height: zod.number().nullish().describe("Video height in pixels"),
+      })
+      .describe(
+        "A selectable video format. Raw CDN\/HLS URLs are never exposed to the client — use formatId + the original post URL with POST \/api\/download.\n",
+      ),
   ),
 });
